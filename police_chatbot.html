@@ -1,0 +1,975 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>CivicShield — Police Complaint Chatbot</title>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --navy: #0b1120;
+    --navy2: #111a2e;
+    --navy3: #162040;
+    --blue: #1e6fff;
+    --blue2: #3d8bff;
+    --cyan: #00c9e0;
+    --red: #e8334a;
+    --amber: #f5a623;
+    --green: #22c97a;
+    --purple: #7c5cfc;
+    --text: #e8edf5;
+    --text2: #8fa3c0;
+    --border: rgba(30,111,255,0.18);
+    --glow: rgba(30,111,255,0.25);
+    --card: rgba(17,26,46,0.85);
+  }
+
+  * { margin:0; padding:0; box-sizing:border-box; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--navy);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Background grid */
+  body::before {
+    content:'';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(30,111,255,0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(30,111,255,0.04) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  body::after {
+    content:'';
+    position: fixed;
+    top: -200px; left: -200px;
+    width: 600px; height: 600px;
+    background: radial-gradient(circle, rgba(30,111,255,0.12) 0%, transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* ---- LAYOUT ---- */
+  .shell {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    grid-template-columns: 260px 1fr;
+    grid-template-rows: 56px 1fr;
+    height: 100vh;
+  }
+
+  /* ---- TOP BAR ---- */
+  .topbar {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 24px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(11,17,32,0.95);
+    backdrop-filter: blur(12px);
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: var(--text);
+  }
+
+  .logo-icon {
+    width: 30px; height: 30px;
+    background: var(--blue);
+    border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px;
+  }
+
+  .logo span { color: var(--cyan); }
+
+  .topbar-right {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .status-pill {
+    display: flex; align-items: center; gap: 6px;
+    padding: 4px 12px;
+    background: rgba(34,201,122,0.12);
+    border: 1px solid rgba(34,201,122,0.3);
+    border-radius: 20px;
+    font-size: 12px;
+    color: var(--green);
+    font-weight: 500;
+  }
+  .status-pill::before { content:''; width:6px; height:6px; border-radius:50%; background:var(--green); animation: pulse 2s infinite; }
+
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+  .avatar {
+    width: 32px; height: 32px;
+    background: linear-gradient(135deg, var(--blue), var(--purple));
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 600; cursor: pointer;
+  }
+
+  /* ---- SIDEBAR ---- */
+  .sidebar {
+    background: rgba(11,17,32,0.9);
+    border-right: 1px solid var(--border);
+    padding: 20px 0;
+    overflow-y: auto;
+  }
+
+  .sidebar-section {
+    padding: 0 16px;
+    margin-bottom: 24px;
+  }
+
+  .sidebar-label {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--text2);
+    padding: 0 8px;
+    margin-bottom: 8px;
+  }
+
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 12px;
+    border-radius: 8px;
+    font-size: 13.5px;
+    color: var(--text2);
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-bottom: 2px;
+    border: 1px solid transparent;
+  }
+
+  .nav-item:hover { background: rgba(30,111,255,0.08); color: var(--text); }
+
+  .nav-item.active {
+    background: rgba(30,111,255,0.15);
+    border-color: rgba(30,111,255,0.3);
+    color: var(--blue2);
+  }
+
+  .nav-icon { font-size: 16px; width: 20px; text-align: center; }
+
+  .badge {
+    margin-left: auto;
+    padding: 1px 7px;
+    border-radius: 10px;
+    font-size: 10px;
+    font-weight: 600;
+  }
+  .badge.red { background: rgba(232,51,74,0.2); color: var(--red); }
+  .badge.blue { background: rgba(30,111,255,0.2); color: var(--blue2); }
+  .badge.green { background: rgba(34,201,122,0.15); color: var(--green); }
+
+  .dept-card {
+    margin: 0 16px 8px;
+    padding: 10px 12px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    cursor: pointer;
+    transition: border-color 0.2s;
+  }
+  .dept-card:hover { border-color: rgba(30,111,255,0.5); }
+
+  .dept-card-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+  }
+
+  .dept-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .dept-name {
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--text);
+  }
+
+  .dept-count {
+    margin-left: auto;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text2);
+  }
+
+  .dept-bar {
+    height: 3px;
+    background: rgba(255,255,255,0.06);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .dept-bar-fill { height: 100%; border-radius: 2px; }
+
+  /* ---- MAIN ---- */
+  .main {
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    overflow: hidden;
+  }
+
+  /* ---- CHAT HEADER ---- */
+  .chat-header {
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .chat-header-left {
+    display: flex; align-items: center; gap: 12px;
+  }
+
+  .bot-avatar {
+    width: 40px; height: 40px;
+    background: linear-gradient(135deg, var(--blue), var(--cyan));
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px;
+    box-shadow: 0 0 16px rgba(30,111,255,0.4);
+  }
+
+  .bot-name {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+  }
+
+  .bot-status { font-size: 12px; color: var(--text2); }
+  .bot-status span { color: var(--green); }
+
+  .quick-actions {
+    display: flex; gap: 8px;
+  }
+
+  .qa-btn {
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 500;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text2);
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .qa-btn:hover { border-color: var(--blue); color: var(--blue2); background: rgba(30,111,255,0.08); }
+
+  /* ---- CHAT BODY ---- */
+  .chat-body {
+    overflow-y: auto;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .chat-body::-webkit-scrollbar { width: 4px; }
+  .chat-body::-webkit-scrollbar-track { background: transparent; }
+  .chat-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  /* Messages */
+  .msg { display: flex; gap: 10px; max-width: 78%; animation: fadeUp 0.3s ease; }
+  .msg.bot { align-self: flex-start; }
+  .msg.user { align-self: flex-end; flex-direction: row-reverse; }
+
+  @keyframes fadeUp { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:none} }
+
+  .msg-avatar {
+    width: 32px; height: 32px;
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+  .msg.bot .msg-avatar { background: linear-gradient(135deg,var(--blue),var(--cyan)); }
+  .msg.user .msg-avatar { background: linear-gradient(135deg,var(--purple),var(--blue)); }
+
+  .msg-bubble {
+    padding: 12px 16px;
+    border-radius: 12px;
+    font-size: 13.5px;
+    line-height: 1.6;
+  }
+  .msg.bot .msg-bubble {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 4px 12px 12px 12px;
+  }
+  .msg.user .msg-bubble {
+    background: rgba(30,111,255,0.18);
+    border: 1px solid rgba(30,111,255,0.3);
+    border-radius: 12px 4px 12px 12px;
+  }
+
+  .msg-time { font-size: 10px; color: var(--text2); margin-top: 4px; padding: 0 4px; }
+
+  /* Priority cards inside messages */
+  .priority-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-top: 10px;
+  }
+
+  .p-card {
+    padding: 10px 12px;
+    border-radius: 8px;
+    border: 1px solid;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .p-card:hover { transform: translateY(-1px); }
+  .p-card.emergency { border-color: rgba(232,51,74,0.4); background: rgba(232,51,74,0.08); }
+  .p-card.priority  { border-color: rgba(245,166,35,0.4); background: rgba(245,166,35,0.08); }
+  .p-card.cyber     { border-color: rgba(30,111,255,0.4); background: rgba(30,111,255,0.08); }
+  .p-card.general   { border-color: rgba(34,201,122,0.4); background: rgba(34,201,122,0.08); }
+
+  .p-card-icon { font-size: 18px; }
+  .p-card-text { font-size: 12.5px; font-weight: 500; }
+  .p-card.emergency .p-card-text { color: var(--red); }
+  .p-card.priority  .p-card-text { color: var(--amber); }
+  .p-card.cyber     .p-card-text { color: var(--blue2); }
+  .p-card.general   .p-card-text { color: var(--green); }
+
+  /* Routing indicator */
+  .routing-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    margin-top: 8px;
+    animation: pulse 2s infinite;
+  }
+  .routing-badge.emergency { background: rgba(232,51,74,0.15); border:1px solid rgba(232,51,74,0.35); color: var(--red); }
+  .routing-badge.cyber { background: rgba(30,111,255,0.12); border:1px solid rgba(30,111,255,0.3); color: var(--blue2); }
+
+  .step-list {
+    margin-top: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .step-item {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 12.5px;
+    color: var(--text2);
+  }
+  .step-num {
+    width: 20px; height: 20px;
+    border-radius: 50%;
+    background: rgba(30,111,255,0.2);
+    border: 1px solid rgba(30,111,255,0.4);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--blue2);
+    flex-shrink: 0;
+  }
+  .step-num.done { background: rgba(34,201,122,0.2); border-color: rgba(34,201,122,0.4); color: var(--green); }
+
+  /* Toll-free card */
+  .toll-card {
+    margin-top: 10px;
+    padding: 12px 16px;
+    background: linear-gradient(135deg, rgba(232,51,74,0.12), rgba(232,51,74,0.06));
+    border: 1px solid rgba(232,51,74,0.35);
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .toll-number {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--red);
+    letter-spacing: 1px;
+  }
+  .toll-label { font-size: 11px; color: var(--text2); margin-top: 2px; }
+  .call-btn {
+    padding: 8px 18px;
+    background: var(--red);
+    border: none;
+    border-radius: 8px;
+    color: #fff;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex; align-items: center; gap: 6px;
+    transition: opacity 0.2s;
+  }
+  .call-btn:hover { opacity: 0.85; }
+
+  /* ---- INPUT AREA ---- */
+  .input-area {
+    padding: 16px 24px;
+    border-top: 1px solid var(--border);
+    background: rgba(11,17,32,0.8);
+  }
+
+  .input-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 8px 12px;
+    transition: border-color 0.2s;
+  }
+  .input-row:focus-within { border-color: rgba(30,111,255,0.5); box-shadow: 0 0 0 3px rgba(30,111,255,0.08); }
+
+  .input-row input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    font-size: 13.5px;
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+  }
+  .input-row input::placeholder { color: var(--text2); }
+
+  .input-icon-btn {
+    background: transparent;
+    border: none;
+    color: var(--text2);
+    cursor: pointer;
+    padding: 4px;
+    font-size: 16px;
+    transition: color 0.2s;
+    display: flex; align-items: center;
+  }
+  .input-icon-btn:hover { color: var(--blue2); }
+
+  .send-btn {
+    width: 36px; height: 36px;
+    background: var(--blue);
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    color: #fff;
+    font-size: 16px;
+    transition: background 0.2s, transform 0.1s;
+    flex-shrink: 0;
+  }
+  .send-btn:hover { background: var(--blue2); transform: scale(1.05); }
+
+  .hint-row {
+    display: flex; gap: 6px;
+    margin-top: 10px;
+    flex-wrap: wrap;
+  }
+
+  .hint-chip {
+    padding: 4px 12px;
+    border-radius: 16px;
+    font-size: 11.5px;
+    border: 1px solid var(--border);
+    color: var(--text2);
+    cursor: pointer;
+    transition: all 0.2s;
+    background: transparent;
+  }
+  .hint-chip:hover { border-color: var(--blue); color: var(--blue2); background: rgba(30,111,255,0.08); }
+
+  /* ---- RIGHT PANEL ---- */
+  .right-panel {
+    display: none;
+  }
+
+  /* stat strip */
+  .stat-strip {
+    display: flex; gap: 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .stat {
+    flex: 1;
+    padding: 10px 16px;
+    border-right: 1px solid var(--border);
+  }
+  .stat:last-child { border-right: none; }
+  .stat-val {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 22px;
+    font-weight: 700;
+  }
+  .stat-val.red { color: var(--red); }
+  .stat-val.amber { color: var(--amber); }
+  .stat-val.blue { color: var(--blue2); }
+  .stat-val.green { color: var(--green); }
+  .stat-lbl { font-size: 10px; color: var(--text2); margin-top: 1px; }
+
+  /* typing indicator */
+  .typing {
+    display: flex; gap: 4px; align-items: center;
+    padding: 10px 14px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 4px 12px 12px 12px;
+    width: fit-content;
+  }
+  .typing span {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--text2);
+    animation: bounce 1.2s infinite;
+  }
+  .typing span:nth-child(2) { animation-delay: 0.2s; }
+  .typing span:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes bounce { 0%,60%,100%{transform:none} 30%{transform:translateY(-5px)} }
+
+  /* scrollbar */
+  * { scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+
+  @media (max-width: 700px) {
+    .shell { grid-template-columns: 1fr; }
+    .sidebar { display: none; }
+    .quick-actions .qa-btn:not(:first-child) { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <!-- TOP BAR -->
+  <header class="topbar">
+    <div class="logo">
+      <div class="logo-icon">🛡️</div>
+      CIVIC<span>SHIELD</span>
+    </div>
+    <div class="topbar-right">
+      <div class="status-pill">System Online</div>
+      <button class="qa-btn" style="border-color:rgba(232,51,74,0.4);color:var(--red)">🚨 Emergency: 112</button>
+      <div class="avatar">AK</div>
+    </div>
+  </header>
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-label">Navigation</div>
+      <div class="nav-item active">
+        <span class="nav-icon">💬</span> Complaint Bot
+        <span class="badge green">Live</span>
+      </div>
+      <div class="nav-item">
+        <span class="nav-icon">📋</span> My Cases
+        <span class="badge blue">3</span>
+      </div>
+      <div class="nav-item">
+        <span class="nav-icon">🔔</span> Notifications
+        <span class="badge red">5</span>
+      </div>
+      <div class="nav-item">
+        <span class="nav-icon">📁</span> File a Claim
+      </div>
+      <div class="nav-item">
+        <span class="nav-icon">📍</span> Track Status
+      </div>
+      <div class="nav-item">
+        <span class="nav-icon">📞</span> Toll-Free Lines
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-label">Departments</div>
+    </div>
+
+    <div class="dept-card">
+      <div class="dept-card-header">
+        <div class="dept-dot" style="background:var(--red)"></div>
+        <span class="dept-name">Emergency</span>
+        <span class="dept-count">12 active</span>
+      </div>
+      <div class="dept-bar"><div class="dept-bar-fill" style="width:75%;background:var(--red)"></div></div>
+    </div>
+    <div class="dept-card">
+      <div class="dept-card-header">
+        <div class="dept-dot" style="background:var(--amber)"></div>
+        <span class="dept-name">Priority</span>
+        <span class="dept-count">8 active</span>
+      </div>
+      <div class="dept-bar"><div class="dept-bar-fill" style="width:50%;background:var(--amber)"></div></div>
+    </div>
+    <div class="dept-card">
+      <div class="dept-card-header">
+        <div class="dept-dot" style="background:var(--blue2)"></div>
+        <span class="dept-name">Cyber Crime</span>
+        <span class="dept-count">5 active</span>
+      </div>
+      <div class="dept-bar"><div class="dept-bar-fill" style="width:35%;background:var(--blue2)"></div></div>
+    </div>
+    <div class="dept-card">
+      <div class="dept-card-header">
+        <div class="dept-dot" style="background:var(--green)"></div>
+        <span class="dept-name">General</span>
+        <span class="dept-count">21 active</span>
+      </div>
+      <div class="dept-bar"><div class="dept-bar-fill" style="width:88%;background:var(--green)"></div></div>
+    </div>
+
+    <div class="sidebar-section" style="margin-top:16px">
+      <div class="sidebar-label">Settings</div>
+      <div class="nav-item"><span class="nav-icon">🌐</span> Language</div>
+      <div class="nav-item"><span class="nav-icon">⚙️</span> Preferences</div>
+      <div class="nav-item"><span class="nav-icon">🔒</span> Privacy</div>
+    </div>
+  </aside>
+
+  <!-- MAIN CHAT -->
+  <main class="main">
+
+    <!-- Stats strip -->
+    <div class="stat-strip">
+      <div class="stat">
+        <div class="stat-val red">12</div>
+        <div class="stat-lbl">Emergency</div>
+      </div>
+      <div class="stat">
+        <div class="stat-val amber">8</div>
+        <div class="stat-lbl">Priority</div>
+      </div>
+      <div class="stat">
+        <div class="stat-val blue">5</div>
+        <div class="stat-lbl">Cyber</div>
+      </div>
+      <div class="stat">
+        <div class="stat-val green">21</div>
+        <div class="stat-lbl">General</div>
+      </div>
+    </div>
+
+    <!-- Chat header -->
+    <div class="chat-header">
+      <div class="chat-header-left">
+        <div class="bot-avatar">🤖</div>
+        <div>
+          <div class="bot-name">KAVACH — Police Assistant Bot</div>
+          <div class="bot-status">Powered by CivicShield AI · <span>Online</span> · Response &lt;30s</div>
+        </div>
+      </div>
+      <div class="quick-actions">
+        <button class="qa-btn" onclick="addEmergencyFlow()">🚨 Emergency</button>
+        <button class="qa-btn" onclick="addCyberFlow()">💻 Cyber</button>
+        <button class="qa-btn">📋 Track case</button>
+      </div>
+    </div>
+
+    <!-- Chat body -->
+    <div class="chat-body" id="chatBody">
+
+      <!-- Welcome message -->
+      <div class="msg bot">
+        <div class="msg-avatar">🤖</div>
+        <div>
+          <div class="msg-bubble">
+            <strong style="color:var(--cyan);font-family:'Rajdhani',sans-serif;font-size:15px;letter-spacing:0.5px">Namaste! I am KAVACH 🛡️</strong><br/>
+            Your official police complaint assistant. I can help you report incidents, file complaints, and connect you to the right department — 24 × 7.<br/><br/>
+            <strong style="font-size:13px;color:var(--text2)">How can I assist you today?</strong>
+            <div class="priority-grid">
+              <div class="p-card emergency" onclick="addEmergencyFlow()">
+                <span class="p-card-icon">🚨</span>
+                <span class="p-card-text">Emergency</span>
+              </div>
+              <div class="p-card priority" onclick="sendUserMsg('I need to report a priority crime')">
+                <span class="p-card-icon">⚠️</span>
+                <span class="p-card-text">Priority Crime</span>
+              </div>
+              <div class="p-card cyber" onclick="addCyberFlow()">
+                <span class="p-card-icon">💻</span>
+                <span class="p-card-text">Cyber Crime</span>
+              </div>
+              <div class="p-card general" onclick="sendUserMsg('I want to file a general complaint')">
+                <span class="p-card-icon">📋</span>
+                <span class="p-card-text">General Complaint</span>
+              </div>
+            </div>
+          </div>
+          <div class="msg-time">KAVACH · Just now</div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Input area -->
+    <div class="input-area">
+      <div class="input-row">
+        <button class="input-icon-btn" title="Attach file">📎</button>
+        <button class="input-icon-btn" title="Voice input">🎙️</button>
+        <input type="text" id="msgInput" placeholder="Describe your complaint or type a message…" onkeydown="if(event.key==='Enter')sendMsg()"/>
+        <button class="input-icon-btn" title="Location">📍</button>
+        <button class="send-btn" onclick="sendMsg()" title="Send">➤</button>
+      </div>
+      <div class="hint-row">
+        <button class="hint-chip" onclick="fillInput('I witnessed an accident on NH16')">🚗 Road accident</button>
+        <button class="hint-chip" onclick="fillInput('My phone was stolen at market')">📱 Phone stolen</button>
+        <button class="hint-chip" onclick="fillInput('I received a fraud call asking for OTP')">🔐 OTP fraud</button>
+        <button class="hint-chip" onclick="fillInput('I want to check my case status')">🔍 Track case</button>
+        <button class="hint-chip" onclick="fillInput('I need emergency police help right now')">🆘 Need help now</button>
+      </div>
+    </div>
+  </main>
+
+</div>
+
+<script>
+  const chatBody = document.getElementById('chatBody');
+  const msgInput = document.getElementById('msgInput');
+
+  function scrollDown() {
+    setTimeout(() => chatBody.scrollTop = chatBody.scrollHeight, 50);
+  }
+
+  function addMsg(type, html) {
+    const isBot = type === 'bot';
+    const div = document.createElement('div');
+    div.className = `msg ${type}`;
+    const now = new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+    div.innerHTML = `
+      <div class="msg-avatar">${isBot ? '🤖' : '👤'}</div>
+      <div>
+        <div class="msg-bubble">${html}</div>
+        <div class="msg-time">${isBot ? 'KAVACH' : 'You'} · ${now}</div>
+      </div>`;
+    chatBody.appendChild(div);
+    scrollDown();
+  }
+
+  function addTyping() {
+    const row = document.createElement('div');
+    row.className = 'msg bot';
+    row.id = 'typing';
+    row.innerHTML = `<div class="msg-avatar">🤖</div><div class="typing"><span></span><span></span><span></span></div>`;
+    chatBody.appendChild(row);
+    scrollDown();
+    return row;
+  }
+
+  function removeTyping() {
+    const t = document.getElementById('typing');
+    if (t) t.remove();
+  }
+
+  function fillInput(text) {
+    msgInput.value = text;
+    msgInput.focus();
+  }
+
+  function sendUserMsg(text) {
+    addMsg('user', text);
+  }
+
+  function sendMsg() {
+    const val = msgInput.value.trim();
+    if (!val) return;
+    addMsg('user', val);
+    msgInput.value = '';
+
+    const lower = val.toLowerCase();
+    addTyping();
+
+    setTimeout(() => {
+      removeTyping();
+      if (lower.includes('emergency') || lower.includes('help now') || lower.includes('urgent')) {
+        addEmergencyResponse();
+      } else if (lower.includes('cyber') || lower.includes('otp') || lower.includes('fraud') || lower.includes('hack')) {
+        addCyberResponse();
+      } else if (lower.includes('accident')) {
+        addAccidentResponse();
+      } else if (lower.includes('stolen') || lower.includes('theft')) {
+        addTheftResponse();
+      } else if (lower.includes('status') || lower.includes('track')) {
+        addTrackResponse();
+      } else if (lower.includes('general') || lower.includes('complaint')) {
+        addGeneralResponse();
+      } else {
+        addMsg('bot', `I've received your message. Let me classify and route it to the appropriate department.<br/><br/>
+        Could you please provide:<br/>
+        <div class="step-list">
+          <div class="step-item"><div class="step-num">1</div> Your location / city</div>
+          <div class="step-item"><div class="step-num">2</div> Date and time of incident</div>
+          <div class="step-item"><div class="step-num">3</div> Brief description of the incident</div>
+        </div>`);
+      }
+    }, 1400);
+  }
+
+  function addEmergencyFlow() {
+    addMsg('user', 'I need emergency police help right now!');
+    addTyping();
+    setTimeout(() => { removeTyping(); addEmergencyResponse(); }, 1200);
+  }
+
+  function addCyberFlow() {
+    addMsg('user', 'I am a victim of cyber crime / online fraud');
+    addTyping();
+    setTimeout(() => { removeTyping(); addCyberResponse(); }, 1200);
+  }
+
+  function addEmergencyResponse() {
+    addMsg('bot', `
+      <div class="routing-badge emergency">🚨 EMERGENCY — Routing to Emergency Department</div>
+      <br/>Your case has been flagged as <strong style="color:var(--red)">HIGH PRIORITY</strong>. Officers are being notified immediately.
+      <div class="toll-card">
+        <div>
+          <div class="toll-number">📞 1-800-180-0132</div>
+          <div class="toll-label">Emergency Police Helpline · Free · 24×7</div>
+        </div>
+        <button class="call-btn">📞 Call Now</button>
+      </div>
+      <div class="step-list" style="margin-top:10px">
+        <div class="step-item"><div class="step-num done">✓</div> Complaint received &amp; validated</div>
+        <div class="step-item"><div class="step-num done">✓</div> Location identified</div>
+        <div class="step-item"><div class="step-num">3</div> Nearest patrol unit being dispatched</div>
+        <div class="step-item"><div class="step-num">4</div> SHO notified via system alert</div>
+      </div>
+      <br/><span style="font-size:12px;color:var(--text2)">Case ID: <strong style="color:var(--cyan)">EMG-2026-03841</strong> · Stay safe, help is on the way.</span>
+    `);
+  }
+
+  function addCyberResponse() {
+    addMsg('bot', `
+      <div class="routing-badge cyber">💻 Routing to Cyber Crime Cell</div>
+      <br/>Your complaint has been classified as a <strong style="color:var(--blue2)">Cyber Crime</strong>. Our digital forensics team will handle this.
+      <div class="step-list" style="margin-top:10px">
+        <div class="step-item"><div class="step-num done">✓</div> Incident classified as cyber crime</div>
+        <div class="step-item"><div class="step-num done">✓</div> Escalated to Cyber Crime Cell</div>
+        <div class="step-item"><div class="step-num">3</div> Please provide: screenshots, transaction ID, account details</div>
+        <div class="step-item"><div class="step-num">4</div> Secure email thread will be sent to you</div>
+      </div>
+      <br/>
+      <div style="padding:10px 14px;background:rgba(30,111,255,0.08);border:1px solid rgba(30,111,255,0.25);border-radius:8px;font-size:12.5px">
+        📧 <strong style="color:var(--blue2)">cybercrime@civicshield.gov.in</strong> — Upload evidence directly<br/>
+        📞 <strong style="color:var(--cyan)">1930</strong> — National Cyber Crime Helpline
+      </div>
+      <br/><span style="font-size:12px;color:var(--text2)">Case ID: <strong style="color:var(--cyan)">CYB-2026-00912</strong></span>
+    `);
+  }
+
+  function addAccidentResponse() {
+    addMsg('bot', `
+      <strong style="color:var(--amber)">⚠️ Accident Report Initiated</strong><br/><br/>
+      Your accident report is being filed. An officer will be dispatched to the scene.
+      <div class="toll-card" style="border-color:rgba(245,166,35,0.4);background:rgba(245,166,35,0.08)">
+        <div>
+          <div class="toll-number" style="color:var(--amber)">📞 1-800-103</div>
+          <div class="toll-label">Road Accident Helpline · Free · 24×7</div>
+        </div>
+        <button class="call-btn" style="background:var(--amber)">📞 Call</button>
+      </div>
+      <div class="step-list" style="margin-top:10px">
+        <div class="step-item"><div class="step-num done">✓</div> Accident claim form auto-generated</div>
+        <div class="step-item"><div class="step-num">2</div> Traffic police being notified</div>
+        <div class="step-item"><div class="step-num">3</div> Insurance claim process initiated</div>
+        <div class="step-item"><div class="step-num">4</div> Executive approval pending</div>
+      </div>
+    `);
+  }
+
+  function addTheftResponse() {
+    addMsg('bot', `
+      <strong style="color:var(--amber)">📱 Theft / Stolen Property Report</strong><br/><br/>
+      Filing a Priority complaint for theft. Please provide:
+      <div class="step-list" style="margin-top:8px">
+        <div class="step-item"><div class="step-num">1</div> Item description &amp; approximate value</div>
+        <div class="step-item"><div class="step-num">2</div> Location where theft occurred</div>
+        <div class="step-item"><div class="step-num">3</div> Time of incident</div>
+        <div class="step-item"><div class="step-num">4</div> IMEI number (if mobile phone)</div>
+      </div>
+      <br/>
+      <div style="padding:8px 12px;background:rgba(124,92,252,0.1);border:1px solid rgba(124,92,252,0.3);border-radius:8px;font-size:12.5px">
+        🔍 <strong style="color:var(--purple)">CEIR Portal</strong> — Block stolen mobile at ceir.gov.in
+      </div>
+      <br/><span style="font-size:12px;color:var(--text2)">Draft Case ID: <strong style="color:var(--cyan)">PRI-2026-05521</strong></span>
+    `);
+  }
+
+  function addTrackResponse() {
+    addMsg('bot', `
+      <strong style="color:var(--cyan)">🔍 Case Status Tracker</strong><br/><br/>
+      Please enter your <strong>Case ID</strong> (e.g. EMG-2026-03841) to check the current status.<br/><br/>
+      <div style="display:flex;gap:8px;margin-top:6px">
+        <input id="caseInput" placeholder="Enter Case ID…" style="flex:1;padding:8px 12px;background:rgba(30,111,255,0.08);border:1px solid rgba(30,111,255,0.3);border-radius:8px;color:var(--text);font-size:13px;outline:none;font-family:'DM Sans',sans-serif"/>
+        <button onclick="checkCase()" style="padding:8px 16px;background:var(--blue);border:none;border-radius:8px;color:#fff;font-size:13px;font-weight:600;cursor:pointer">Search</button>
+      </div>
+    `);
+  }
+
+  function checkCase() {
+    addMsg('user', 'Checking case: EMG-2026-03841');
+    addTyping();
+    setTimeout(() => {
+      removeTyping();
+      addMsg('bot', `
+        <strong style="color:var(--green)">✅ Case Found — EMG-2026-03841</strong><br/><br/>
+        <div class="step-list">
+          <div class="step-item"><div class="step-num done">✓</div> Complaint registered · 09:14 AM</div>
+          <div class="step-item"><div class="step-num done">✓</div> Officer assigned: SI Ramesh Kumar</div>
+          <div class="step-item"><div class="step-num done">✓</div> On-site visit completed · 10:02 AM</div>
+          <div class="step-item"><div class="step-num">4</div> Investigation in progress (est. 48 hrs)</div>
+          <div class="step-item"><div class="step-num">5</div> Final report pending SP approval</div>
+        </div>
+        <br/><span style="font-size:12px;color:var(--text2)">Last updated: Today · <strong style="color:var(--cyan)">SMS notification sent</strong> to your registered number.</span>
+      `);
+    }, 1000);
+  }
+
+  function addGeneralResponse() {
+    addMsg('bot', `
+      <strong style="color:var(--green)">📋 General Complaint Registration</strong><br/><br/>
+      I'll help you file a general complaint. Please select the category:
+      <div class="priority-grid" style="margin-top:10px">
+        <div class="p-card general" onclick="sendUserMsg('Noise complaint / public disturbance')"><span class="p-card-icon">🔊</span><span class="p-card-text">Noise / Disturbance</span></div>
+        <div class="p-card general" onclick="sendUserMsg('Missing person report')"><span class="p-card-icon">🔍</span><span class="p-card-text">Missing Person</span></div>
+        <div class="p-card general" onclick="sendUserMsg('Property dispute complaint')"><span class="p-card-icon">🏠</span><span class="p-card-text">Property Dispute</span></div>
+        <div class="p-card general" onclick="sendUserMsg('Harassment complaint')"><span class="p-card-icon">⚖️</span><span class="p-card-text">Harassment</span></div>
+      </div>
+    `);
+  }
+
+  // Nav items
+  document.querySelectorAll('.nav-item').forEach(item => {
+    item.addEventListener('click', function() {
+      document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+      this.classList.add('active');
+    });
+  });
+</script>
+</body>
+</html>
