@@ -1,0 +1,1086 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>CivicShield — Microservices Architecture</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+:root {
+  --bg: #060c14;
+  --bg2: #0a1220;
+  --bg3: #0f1c30;
+  --panel: rgba(10,18,32,0.95);
+  --border: rgba(0,200,255,0.12);
+  --border2: rgba(0,200,255,0.25);
+  --cyan: #00c8ff;
+  --cyan2: #00eaff;
+  --green: #00ff9d;
+  --amber: #ffb700;
+  --red: #ff4060;
+  --purple: #a855f7;
+  --pink: #ff2d7a;
+  --text: #c8dff0;
+  --text2: #5a7a99;
+  --mono: 'Share Tech Mono', monospace;
+  --body: 'Outfit', sans-serif;
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+
+body {
+  font-family: var(--body);
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Scanline overlay */
+body::before {
+  content:'';
+  position:fixed; inset:0;
+  background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,200,255,0.015) 2px, rgba(0,200,255,0.015) 4px);
+  pointer-events:none; z-index:9999;
+}
+
+/* Grid bg */
+body::after {
+  content:'';
+  position:fixed; inset:0;
+  background-image:
+    linear-gradient(rgba(0,200,255,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,200,255,0.03) 1px, transparent 1px);
+  background-size: 32px 32px;
+  pointer-events:none; z-index:0;
+}
+
+/* ─── TOP BAR ─── */
+.topbar {
+  position: sticky; top:0; z-index: 100;
+  display:flex; align-items:center; justify-content:space-between;
+  padding: 0 28px;
+  height: 52px;
+  background: rgba(6,12,20,0.97);
+  border-bottom: 1px solid var(--border2);
+  backdrop-filter: blur(10px);
+}
+
+.logo {
+  font-family: var(--mono);
+  font-size: 15px;
+  color: var(--cyan);
+  letter-spacing: 2px;
+  display:flex; align-items:center; gap:10px;
+}
+
+.logo-dot {
+  width:8px; height:8px; border-radius:50%;
+  background:var(--green);
+  box-shadow: 0 0 8px var(--green);
+  animation: blink 2s infinite;
+}
+
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+.topbar-tabs {
+  display:flex; gap:4px;
+}
+
+.tab {
+  padding: 5px 16px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.5px;
+  cursor:pointer;
+  border: 1px solid transparent;
+  transition: all 0.2s;
+  color: var(--text2);
+  background: transparent;
+  font-family: var(--body);
+}
+
+.tab:hover { color: var(--cyan); border-color: var(--border2); }
+.tab.active { background: rgba(0,200,255,0.1); border-color: var(--border2); color: var(--cyan); }
+
+.sys-status {
+  display:flex; align-items:center; gap:8px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text2);
+}
+.ping { color: var(--green); }
+
+/* ─── MAIN LAYOUT ─── */
+.app {
+  position:relative; z-index:1;
+  display:grid;
+  grid-template-columns: 240px 1fr 300px;
+  height: calc(100vh - 52px);
+}
+
+/* ─── LEFT PANEL ─── */
+.left {
+  border-right: 1px solid var(--border);
+  overflow-y:auto;
+  padding: 16px 0;
+}
+
+.panel-title {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: var(--text2);
+  padding: 0 16px 10px;
+  text-transform: uppercase;
+}
+
+.service-item {
+  display:flex; align-items:center; gap:10px;
+  padding: 9px 16px;
+  cursor:pointer;
+  transition: background 0.15s;
+  border-left: 2px solid transparent;
+}
+
+.service-item:hover { background: rgba(0,200,255,0.05); }
+.service-item.active { background: rgba(0,200,255,0.08); border-left-color: var(--cyan); }
+
+.svc-dot {
+  width:7px; height:7px; border-radius:50%;
+  flex-shrink:0;
+  box-shadow: 0 0 6px currentColor;
+}
+
+.svc-name {
+  font-size: 12.5px;
+  font-weight: 500;
+  line-height:1.3;
+}
+
+.svc-sub {
+  font-size: 10px;
+  color: var(--text2);
+  margin-top:1px;
+}
+
+.svc-status {
+  margin-left:auto;
+  font-family: var(--mono);
+  font-size: 9px;
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+
+.svc-status.up { background:rgba(0,255,157,0.12); color:var(--green); }
+.svc-status.warn { background:rgba(255,183,0,0.12); color:var(--amber); }
+
+.divider {
+  height:1px; background: var(--border);
+  margin: 10px 0;
+}
+
+/* ─── CENTER (CANVAS) ─── */
+.center {
+  overflow: hidden;
+  position:relative;
+  background: var(--bg);
+}
+
+canvas#arch {
+  display:block;
+  width:100%; height:100%;
+}
+
+.canvas-overlay {
+  position:absolute; bottom:16px; left:50%; transform:translateX(-50%);
+  display:flex; gap:10px;
+}
+
+.ov-btn {
+  padding: 6px 14px;
+  font-size: 11px;
+  font-family: var(--mono);
+  border: 1px solid var(--border2);
+  background: rgba(6,12,20,0.85);
+  color: var(--cyan);
+  border-radius: 4px;
+  cursor:pointer;
+  transition:all 0.2s;
+  letter-spacing:0.5px;
+}
+.ov-btn:hover { background: rgba(0,200,255,0.1); }
+.ov-btn.active-flow { border-color: var(--green); color: var(--green); }
+
+.legend {
+  position:absolute; top:12px; left:12px;
+  display:flex; flex-direction:column; gap:6px;
+}
+
+.legend-item {
+  display:flex; align-items:center; gap:7px;
+  font-size:10px;
+  font-family: var(--mono);
+  color: var(--text2);
+}
+
+.legend-line {
+  width:22px; height:2px; border-radius:1px;
+}
+
+/* ─── RIGHT PANEL ─── */
+.right {
+  border-left: 1px solid var(--border);
+  overflow-y:auto;
+  display:flex; flex-direction:column;
+}
+
+.detail-header {
+  padding: 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.detail-badge {
+  display:inline-flex; align-items:center; gap:6px;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-family: var(--mono);
+  font-size: 10px;
+  margin-bottom: 8px;
+}
+
+.detail-name {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.detail-desc {
+  font-size: 12px;
+  color: var(--text2);
+  line-height:1.6;
+}
+
+.metrics-grid {
+  display:grid; grid-template-columns:1fr 1fr;
+  gap:8px;
+  padding: 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.metric-card {
+  padding: 10px 12px;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.metric-val {
+  font-family: var(--mono);
+  font-size: 18px;
+  font-weight: 600;
+  line-height:1;
+}
+
+.metric-lbl {
+  font-size: 10px;
+  color: var(--text2);
+  margin-top: 3px;
+  text-transform:uppercase;
+  letter-spacing:0.5px;
+}
+
+.section {
+  padding: 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.section-title {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  color: var(--text2);
+  text-transform:uppercase;
+  margin-bottom: 10px;
+}
+
+.db-tag {
+  display:inline-flex; align-items:center; gap:5px;
+  padding: 5px 10px;
+  border-radius: 4px;
+  font-size: 11.5px;
+  font-family: var(--mono);
+  margin: 0 4px 6px 0;
+  border: 1px solid;
+}
+
+.endpoint-row {
+  display:flex; align-items:center; gap:8px;
+  padding: 7px 10px;
+  background: var(--bg3);
+  border-radius: 5px;
+  margin-bottom:5px;
+  font-family: var(--mono);
+  font-size: 11px;
+}
+
+.method {
+  padding: 2px 7px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 600;
+}
+.get { background:rgba(0,255,157,0.15); color:var(--green); }
+.post { background:rgba(0,200,255,0.15); color:var(--cyan); }
+.put { background:rgba(255,183,0,0.15); color:var(--amber); }
+.del { background:rgba(255,64,96,0.15); color:var(--red); }
+
+.endpoint-path { color: var(--text); flex:1; }
+.endpoint-ms { color:var(--text2); font-size:10px; }
+
+.log-row {
+  display:flex; align-items:flex-start; gap:8px;
+  padding: 5px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  font-size:11px;
+}
+
+.log-time { font-family:var(--mono); font-size:9px; color:var(--text2); white-space:nowrap; margin-top:2px; }
+.log-msg { line-height:1.5; }
+.log-info { color: var(--cyan); }
+.log-ok   { color: var(--green); }
+.log-warn { color: var(--amber); }
+.log-err  { color: var(--red); }
+
+.flow-step {
+  display:flex; align-items:center; gap:8px;
+  padding: 8px 10px;
+  background: var(--bg3);
+  border-radius: 5px;
+  margin-bottom:5px;
+  font-size:12px;
+  border-left: 3px solid;
+}
+
+.step-num2 {
+  width:20px; height:20px;
+  border-radius:50%;
+  display:flex; align-items:center; justify-content:center;
+  font-size:10px; font-weight:700;
+  flex-shrink:0;
+  font-family:var(--mono);
+}
+
+/* scrollbar */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+/* ping animation for data packets */
+@keyframes travel { from{stroke-dashoffset:200} to{stroke-dashoffset:0} }
+
+.no-select { user-select:none; }
+</style>
+</head>
+<body class="no-select">
+
+<!-- TOP BAR -->
+<div class="topbar">
+  <div class="logo">
+    <div class="logo-dot"></div>
+    CIVICSHIELD · MICROSERVICES
+  </div>
+  <div class="topbar-tabs">
+    <button class="tab active" onclick="switchView('arch')">Architecture</button>
+    <button class="tab" onclick="switchView('flow')">Live Flow</button>
+    <button class="tab" onclick="switchView('db')">Databases</button>
+    <button class="tab" onclick="switchView('api')">API Gateway</button>
+  </div>
+  <div class="sys-status">
+    SYS <span class="ping">● ONLINE</span> &nbsp;|&nbsp; 9 SERVICES &nbsp;|&nbsp; 4 DBs &nbsp;|&nbsp; <span id="reqCount">0</span> REQ/S
+  </div>
+</div>
+
+<!-- MAIN -->
+<div class="app">
+
+  <!-- LEFT: Service list -->
+  <div class="left">
+    <div class="panel-title">Services</div>
+
+    <div class="service-item active" onclick="selectService('api-gateway')" id="si-api-gateway">
+      <div class="svc-dot" style="color:var(--cyan)"></div>
+      <div>
+        <div class="svc-name">API Gateway</div>
+        <div class="svc-sub">Port 8080 · Kong</div>
+      </div>
+      <div class="svc-status up">UP</div>
+    </div>
+
+    <div class="service-item" onclick="selectService('auth')" id="si-auth">
+      <div class="svc-dot" style="color:var(--purple)"></div>
+      <div>
+        <div class="svc-name">Auth Service</div>
+        <div class="svc-sub">Port 3001 · JWT</div>
+      </div>
+      <div class="svc-status up">UP</div>
+    </div>
+
+    <div class="service-item" onclick="selectService('complaint')" id="si-complaint">
+      <div class="svc-dot" style="color:var(--amber)"></div>
+      <div>
+        <div class="svc-name">Complaint Service</div>
+        <div class="svc-sub">Port 3002 · Node.js</div>
+      </div>
+      <div class="svc-status up">UP</div>
+    </div>
+
+    <div class="service-item" onclick="selectService('routing')" id="si-routing">
+      <div class="svc-dot" style="color:var(--red)"></div>
+      <div>
+        <div class="svc-name">Routing Engine</div>
+        <div class="svc-sub">Port 3003 · Python</div>
+      </div>
+      <div class="svc-status up">UP</div>
+    </div>
+
+    <div class="service-item" onclick="selectService('notification')" id="si-notification">
+      <div class="svc-dot" style="color:var(--green)"></div>
+      <div>
+        <div class="svc-name">Notification Svc</div>
+        <div class="svc-sub">Port 3004 · SMS/Email</div>
+      </div>
+      <div class="svc-status up">UP</div>
+    </div>
+
+    <div class="service-item" onclick="selectService('cyber')" id="si-cyber">
+      <div class="svc-dot" style="color:#00aaff)"></div>
+      <div>
+        <div class="svc-name">Cyber Crime Svc</div>
+        <div class="svc-sub">Port 3005 · Python</div>
+      </div>
+      <div class="svc-status up">UP</div>
+    </div>
+
+    <div class="service-item" onclick="selectService('emergency')" id="si-emergency">
+      <div class="svc-dot" style="color:var(--red)"></div>
+      <div>
+        <div class="svc-name">Emergency Dispatch</div>
+        <div class="svc-sub">Port 3006 · Go</div>
+      </div>
+      <div class="svc-status up">UP</div>
+    </div>
+
+    <div class="divider"></div>
+    <div class="panel-title">Message Bus</div>
+
+    <div class="service-item" onclick="selectService('kafka')" id="si-kafka">
+      <div class="svc-dot" style="color:#ff7a00"></div>
+      <div>
+        <div class="svc-name">Apache Kafka</div>
+        <div class="svc-sub">Port 9092 · Broker</div>
+      </div>
+      <div class="svc-status up">UP</div>
+    </div>
+
+    <div class="service-item" onclick="selectService('redis')" id="si-redis">
+      <div class="svc-dot" style="color:#ff4444"></div>
+      <div>
+        <div class="svc-name">Redis Cache</div>
+        <div class="svc-sub">Port 6379 · In-memory</div>
+      </div>
+      <div class="svc-status warn">WARN</div>
+    </div>
+
+    <div class="divider"></div>
+    <div class="panel-title">Databases</div>
+
+    <div class="service-item" onclick="selectService('postgres')" id="si-postgres">
+      <div class="svc-dot" style="color:#336791"></div>
+      <div>
+        <div class="svc-name">PostgreSQL</div>
+        <div class="svc-sub">Cases · Users</div>
+      </div>
+      <div class="svc-status up">UP</div>
+    </div>
+
+    <div class="service-item" onclick="selectService('mongo')" id="si-mongo">
+      <div class="svc-dot" style="color:#4db33d"></div>
+      <div>
+        <div class="svc-name">MongoDB</div>
+        <div class="svc-sub">Logs · Evidence</div>
+      </div>
+      <div class="svc-status up">UP</div>
+    </div>
+
+    <div class="service-item" onclick="selectService('elasticsearch')" id="si-elasticsearch">
+      <div class="svc-dot" style="color:#f4bd19"></div>
+      <div>
+        <div class="svc-name">Elasticsearch</div>
+        <div class="svc-sub">Search · Analytics</div>
+      </div>
+      <div class="svc-status up">UP</div>
+    </div>
+  </div>
+
+  <!-- CENTER: Canvas -->
+  <div class="center" id="center">
+    <canvas id="arch"></canvas>
+
+    <div class="legend">
+      <div class="legend-item"><div class="legend-line" style="background:var(--cyan)"></div> REST / HTTP</div>
+      <div class="legend-item"><div class="legend-line" style="background:var(--amber);border-top:2px dashed var(--amber)"></div> Kafka Events</div>
+      <div class="legend-item"><div class="legend-line" style="background:var(--green)"></div> DB Queries</div>
+      <div class="legend-item"><div class="legend-line" style="background:var(--red)"></div> Emergency</div>
+    </div>
+
+    <div class="canvas-overlay">
+      <button class="ov-btn" onclick="triggerFlow('complaint')">▶ Simulate Complaint</button>
+      <button class="ov-btn" onclick="triggerFlow('emergency')">🚨 Emergency Flow</button>
+      <button class="ov-btn" onclick="triggerFlow('cyber')">💻 Cyber Flow</button>
+      <button class="ov-btn" id="toggleAnim" onclick="toggleLive()">⏸ Pause</button>
+    </div>
+  </div>
+
+  <!-- RIGHT: Detail panel -->
+  <div class="right" id="detailPanel">
+
+    <div class="detail-header">
+      <div class="detail-badge" id="d-badge" style="background:rgba(0,200,255,0.1);border:1px solid rgba(0,200,255,0.3);color:var(--cyan)">
+        <span>⬡</span> API GATEWAY
+      </div>
+      <div class="detail-name" id="d-name">API Gateway</div>
+      <div class="detail-desc" id="d-desc">Single entry point for all client requests. Handles rate limiting, authentication, SSL termination, and routes to downstream microservices.</div>
+    </div>
+
+    <div class="metrics-grid" id="d-metrics">
+      <div class="metric-card">
+        <div class="metric-val" style="color:var(--green)" id="m1">99.9%</div>
+        <div class="metric-lbl">Uptime</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-val" style="color:var(--cyan)" id="m2">42ms</div>
+        <div class="metric-lbl">Avg Latency</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-val" style="color:var(--amber)" id="m3">1.2K</div>
+        <div class="metric-lbl">Req/min</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-val" style="color:var(--purple)" id="m4">8</div>
+        <div class="metric-lbl">Downstream</div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Connected Databases</div>
+      <div id="d-dbs">
+        <span class="db-tag" style="border-color:rgba(51,103,145,0.5);color:#336791;background:rgba(51,103,145,0.1)">🐘 PostgreSQL</span>
+        <span class="db-tag" style="border-color:rgba(77,179,61,0.5);color:#4db33d;background:rgba(77,179,61,0.1)">🍃 MongoDB</span>
+        <span class="db-tag" style="border-color:rgba(255,68,68,0.5);color:#ff4444;background:rgba(255,68,68,0.1)">⚡ Redis</span>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Endpoints</div>
+      <div id="d-endpoints">
+        <div class="endpoint-row"><span class="method post">POST</span><span class="endpoint-path">/api/v1/complaint</span><span class="endpoint-ms">38ms</span></div>
+        <div class="endpoint-row"><span class="method get">GET</span><span class="endpoint-path">/api/v1/status/:id</span><span class="endpoint-ms">12ms</span></div>
+        <div class="endpoint-row"><span class="method post">POST</span><span class="endpoint-path">/api/v1/auth/login</span><span class="endpoint-ms">22ms</span></div>
+        <div class="endpoint-row"><span class="method post">POST</span><span class="endpoint-path">/api/v1/emergency</span><span class="endpoint-ms">8ms</span></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Request Flow</div>
+      <div id="d-flow">
+        <div class="flow-step" style="border-color:var(--cyan)">
+          <div class="step-num2" style="background:rgba(0,200,255,0.15);color:var(--cyan)">1</div>
+          Client → API Gateway (TLS)
+        </div>
+        <div class="flow-step" style="border-color:var(--purple)">
+          <div class="step-num2" style="background:rgba(168,85,247,0.15);color:var(--purple)">2</div>
+          Auth Service validates JWT
+        </div>
+        <div class="flow-step" style="border-color:var(--amber)">
+          <div class="step-num2" style="background:rgba(255,183,0,0.15);color:var(--amber)">3</div>
+          Routing Engine classifies
+        </div>
+        <div class="flow-step" style="border-color:var(--green)">
+          <div class="step-num2" style="background:rgba(0,255,157,0.15);color:var(--green)">4</div>
+          Target service processes
+        </div>
+        <div class="flow-step" style="border-color:var(--cyan)">
+          <div class="step-num2" style="background:rgba(0,200,255,0.15);color:var(--cyan)">5</div>
+          Response returned to client
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Live Logs</div>
+      <div id="d-logs" style="max-height:160px;overflow-y:auto">
+        <div class="log-row"><span class="log-time">09:42:11</span><span class="log-msg log-ok">GET /status/EMG-841 → 200 OK</span></div>
+        <div class="log-row"><span class="log-time">09:42:09</span><span class="log-msg log-info">POST /complaint → routed to complaint-svc</span></div>
+        <div class="log-row"><span class="log-time">09:42:07</span><span class="log-msg log-warn">Redis cache miss — fallback to PostgreSQL</span></div>
+        <div class="log-row"><span class="log-time">09:42:05</span><span class="log-msg log-ok">Auth token validated — user:AK291</span></div>
+        <div class="log-row"><span class="log-time">09:42:02</span><span class="log-msg log-info">Kafka event published: complaint.created</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── DATA ────────────────────────────────────────────────────────────────────
+const services = {
+  'api-gateway': {
+    name:'API Gateway', badge:'⬡ API GATEWAY', color:'#00c8ff',
+    desc:'Single entry point for all client requests. Handles rate limiting, authentication, SSL termination, and routes to downstream microservices.',
+    metrics:['99.9%','42ms','1.2K','8'], mlabels:['Uptime','Avg Latency','Req/min','Downstream'],
+    mcolors:['#00ff9d','#00c8ff','#ffb700','#a855f7'],
+    dbs:['🐘 PostgreSQL:postgres','⚡ Redis:redis'],
+    endpoints:[['POST','/api/v1/complaint','38ms'],['GET','/api/v1/status/:id','12ms'],['POST','/api/v1/auth/login','22ms'],['POST','/api/v1/emergency','8ms']],
+    flow:['Client → API Gateway (TLS)','JWT token validation','Rate limit check (Redis)','Route to target service','Response aggregation'],
+    flowColors:['#00c8ff','#a855f7','#ff4444','#ffb700','#00c8ff'],
+    logs:[['09:42:11','ok','GET /status → 200 OK'],['09:42:09','info','POST /complaint routed'],['09:42:07','warn','Rate limit: 980/1000'],['09:42:05','ok','SSL handshake done']]
+  },
+  'auth': {
+    name:'Auth Service', badge:'🔐 AUTH SERVICE', color:'#a855f7',
+    desc:'Handles user registration, login, JWT token generation and validation. Integrates with OAuth2 providers and manages session tokens in Redis.',
+    metrics:['99.8%','18ms','340','2'],  mlabels:['Uptime','Latency','Tokens/min','DB Conns'],
+    mcolors:['#00ff9d','#00c8ff','#ffb700','#a855f7'],
+    dbs:['🐘 PostgreSQL:postgres','⚡ Redis:redis'],
+    endpoints:[['POST','/auth/login','22ms'],['POST','/auth/register','45ms'],['GET','/auth/verify','8ms'],['POST','/auth/refresh','12ms']],
+    flow:['Client sends credentials','Lookup user in PostgreSQL','Verify password (bcrypt)','Issue JWT + store in Redis','Return token to client'],
+    flowColors:['#a855f7','#336791','#a855f7','#ff4444','#a855f7'],
+    logs:[['09:42:10','ok','JWT issued: user AK291'],['09:42:08','info','Token refresh: sess-882'],['09:42:03','warn','Failed login: user XY001'],['09:41:58','ok','New user registered']]
+  },
+  'complaint': {
+    name:'Complaint Service', badge:'📋 COMPLAINT SVC', color:'#ffb700',
+    desc:'Core service for receiving, storing, and managing police complaints. Validates incoming data, assigns case IDs, and publishes events to Kafka for downstream processing.',
+    metrics:['99.7%','55ms','89','3'], mlabels:['Uptime','Latency','Cases/hr','Active DBs'],
+    mcolors:['#00ff9d','#00c8ff','#ffb700','#a855f7'],
+    dbs:['🐘 PostgreSQL:postgres','🍃 MongoDB:mongo','⚡ Redis:redis'],
+    endpoints:[['POST','/complaint/create','55ms'],['GET','/complaint/:id','18ms'],['PUT','/complaint/update','32ms'],['GET','/complaint/list','45ms']],
+    flow:['Receive complaint payload','Validate & sanitize input','Assign Case ID (UUID)','Store in PostgreSQL','Publish to Kafka topic','Notify Routing Engine'],
+    flowColors:['#ffb700','#ffb700','#ffb700','#336791','#ff7a00','#ff4060'],
+    logs:[['09:42:11','ok','Case EMG-841 created'],['09:42:09','info','Kafka: complaint.new published'],['09:42:06','ok','Validation passed — city: Ongole'],['09:42:01','info','Assigned officer: SI Ramesh']]
+  },
+  'routing': {
+    name:'Routing Engine', badge:'🔀 ROUTING ENGINE', color:'#ff4060',
+    desc:'AI-powered classification engine that analyses complaint content and routes to the appropriate department: Emergency, Priority, Cyber, or General based on NLP classification.',
+    metrics:['99.9%','28ms','89','4'], mlabels:['Uptime','Classify/ms','Cases/hr','Depts'],
+    mcolors:['#00ff9d','#00c8ff','#ffb700','#a855f7'],
+    dbs:['🐘 PostgreSQL:postgres','🔍 Elasticsearch:elasticsearch'],
+    endpoints:[['POST','/route/classify','28ms'],['GET','/route/departments','5ms'],['POST','/route/escalate','12ms']],
+    flow:['Receive complaint event (Kafka)','NLP classification (ML model)','Priority scoring (1–5)','Route: Emergency/Priority/Cyber/General','Dispatch to department service','Log routing decision'],
+    flowColors:['#ff7a00','#ff4060','#ff4060','#ff4060','#ff4060','#4db33d'],
+    logs:[['09:42:11','warn','EMERGENCY flag — dispatching'],['09:42:08','info','Cyber score: 0.94 → CyberCell'],['09:42:05','ok','General → Queue: 3 min ETA'],['09:42:02','info','Priority escalated to SP']]
+  },
+  'notification': {
+    name:'Notification Service', badge:'🔔 NOTIFICATION SVC', color:'#00ff9d',
+    desc:'Dispatches SMS, email, WhatsApp, and push notifications to citizens and officers. Consumes Kafka events and integrates with Twilio, SendGrid, and FCM.',
+    metrics:['99.6%','120ms','450','3'], mlabels:['Uptime','Deliver/ms','Msgs/hr','Channels'],
+    mcolors:['#00ff9d','#00c8ff','#ffb700','#a855f7'],
+    dbs:['🐘 PostgreSQL:postgres','🍃 MongoDB:mongo'],
+    endpoints:[['POST','/notify/sms','120ms'],['POST','/notify/email','85ms'],['POST','/notify/push','45ms'],['GET','/notify/status/:id','10ms']],
+    flow:['Consume Kafka event','Determine channel (SMS/Email/Push)','Fetch template from MongoDB','Render personalised message','Send via Twilio / SendGrid','Log delivery status'],
+    flowColors:['#ff7a00','#00ff9d','#4db33d','#00ff9d','#00ff9d','#00ff9d'],
+    logs:[['09:42:11','ok','SMS sent: +91-98xxx → EMG-841'],['09:42:09','ok','Email: cybercrime@dept.gov'],['09:42:07','info','WhatsApp: case update sent'],['09:42:03','warn','FCM retry: device offline']]
+  },
+  'cyber': {
+    name:'Cyber Crime Service', badge:'💻 CYBER SVC', color:'#00aaff',
+    desc:'Specialist microservice for cyber crime complaints — online fraud, phishing, identity theft, ransomware. Integrates with CERT-In, NCCRP portal, and forensics databases.',
+    metrics:['99.8%','65ms','22','2'], mlabels:['Uptime','Latency','Cases/day','Integrations'],
+    mcolors:['#00ff9d','#00c8ff','#ffb700','#a855f7'],
+    dbs:['🐘 PostgreSQL:postgres','🔍 Elasticsearch:elasticsearch'],
+    endpoints:[['POST','/cyber/report','65ms'],['GET','/cyber/case/:id','20ms'],['POST','/cyber/evidence','90ms'],['GET','/cyber/analyst','15ms']],
+    flow:['Receive cyber complaint','Classify: fraud/phishing/hack','Preserve digital evidence','Escalate to Cyber Cell officer','File on NCCRP portal','Send secure email channel'],
+    flowColors:['#00aaff','#00aaff','#00aaff','#00aaff','#00aaff','#00ff9d'],
+    logs:[['09:42:10','warn','OTP fraud — amount: ₹45K'],['09:42:08','info','IMEI block request: CEIR'],['09:42:05','ok','Evidence hash stored: SHA-256'],['09:41:59','info','Analyst assigned: Cyber01']]
+  },
+  'emergency': {
+    name:'Emergency Dispatch', badge:'🚨 EMERGENCY SVC', color:'#ff4060',
+    desc:'Real-time emergency dispatch service. Routes to nearest patrol unit, notifies SHO, triggers 1-8xx toll-free lines, and coordinates with ambulance/fire services.',
+    metrics:['99.99%','8ms','12','5'], mlabels:['Uptime','Response','Active/hr','Agencies'],
+    mcolors:['#00ff9d','#ff4060','#ffb700','#a855f7'],
+    dbs:['🐘 PostgreSQL:postgres','⚡ Redis:redis'],
+    endpoints:[['POST','/emergency/dispatch','8ms'],['GET','/emergency/units','5ms'],['POST','/emergency/escalate','4ms']],
+    flow:['Emergency flag detected','Geolocate nearest unit (Redis)','Dispatch patrol in < 10s','Notify SHO via SMS + app','Trigger 1-800 callback','Real-time status updates'],
+    flowColors:['#ff4060','#ff4060','#ff4060','#ff4060','#ff4060','#00ff9d'],
+    logs:[['09:42:11','err','EMERGENCY — unit dispatched!'],['09:42:10','ok','Patrol PC-042 en route'],['09:42:09','info','SHO Notified: Ongole PS'],['09:42:08','ok','ETA: 4 minutes']]
+  },
+  'kafka': {
+    name:'Apache Kafka', badge:'⚡ MESSAGE BUS', color:'#ff7a00',
+    desc:'Distributed event streaming platform. Decouples microservices through async messaging. Topics: complaint.created, complaint.routed, notification.send, emergency.alert.',
+    metrics:['99.95%','2ms','3.2K','9'], mlabels:['Uptime','Latency','Events/min','Consumers'],
+    mcolors:['#00ff9d','#00c8ff','#ffb700','#a855f7'],
+    dbs:[],
+    endpoints:[['--','complaint.created','--'],['--','complaint.routed','--'],['--','notification.send','--'],['--','emergency.alert','--']],
+    flow:['Producer publishes event','Partitioned by topic key','Stored in broker log','Consumer group polls','Message delivered once','Offset committed'],
+    flowColors:['#ff7a00','#ff7a00','#ff7a00','#ff7a00','#ff7a00','#00ff9d'],
+    logs:[['09:42:11','ok','complaint.created → 3 consumers'],['09:42:09','info','Lag: notification-grp: 0ms'],['09:42:07','ok','emergency.alert → dispatched'],['09:42:04','warn','Replication factor: 1 (low)']]
+  },
+  'redis': {
+    name:'Redis Cache', badge:'⚡ REDIS CACHE', color:'#ff4444',
+    desc:'In-memory data store for session tokens, geolocation lookups, rate limiting counters, and hot case data. Also used as Pub/Sub for real-time dashboards.',
+    metrics:['99.5%','0.4ms','12K','4'], mlabels:['Uptime','Latency','Ops/sec','Services'],
+    mcolors:['#ffb700','#00c8ff','#ffb700','#a855f7'],
+    dbs:[],
+    endpoints:[['--','GET session:*','0.3ms'],['--','SET case:hot:*','0.4ms'],['--','INCR rate:*','0.2ms'],['--','GEO patrol:*','0.5ms']],
+    flow:['Service checks Redis first','Cache HIT → return instantly','Cache MISS → query PostgreSQL','Store result in Redis (TTL)','Serve cached response','Evict on TTL expiry'],
+    flowColors:['#ff4444','#00ff9d','#ff4444','#ff4444','#ff4444','#ff4444'],
+    logs:[['09:42:11','warn','Memory: 78% used'],['09:42:09','ok','GEO: nearest unit in 2.1km'],['09:42:07','warn','Cache miss — session expired'],['09:42:04','ok','Rate limit reset: user AK']]
+  },
+  'postgres': {
+    name:'PostgreSQL', badge:'🐘 POSTGRESQL', color:'#336791',
+    desc:'Primary relational database. Stores: users, complaints, cases, officers, departments, audit logs. ACID compliant with read replicas for analytics queries.',
+    metrics:['99.9%','12ms','450','3'], mlabels:['Uptime','Query/ms','QPS','Replicas'],
+    mcolors:['#00ff9d','#00c8ff','#ffb700','#a855f7'],
+    dbs:[],
+    endpoints:[['--','users table','--'],['--','complaints table','--'],['--','cases table','--'],['--','departments table','--']],
+    flow:['Service sends SQL query','Connection pool (PgBouncer)','Query planner optimises','Execute on primary/replica','Return ResultSet','Cache in Redis if hot'],
+    flowColors:['#336791','#336791','#336791','#336791','#336791','#ff4444'],
+    logs:[['09:42:11','ok','SELECT case: 11ms'],['09:42:08','ok','INSERT complaint: 23ms'],['09:42:05','info','Replica sync lag: 2ms'],['09:42:01','warn','Slow query: 120ms (index?)']]
+  },
+  'mongo': {
+    name:'MongoDB', badge:'🍃 MONGODB', color:'#4db33d',
+    desc:'Document store for unstructured data: chat logs, evidence files metadata, notification templates, audit trails, and flexible complaint attachments.',
+    metrics:['99.8%','18ms','210','2'], mlabels:['Uptime','Latency','QPS','Shards'],
+    mcolors:['#00ff9d','#00c8ff','#ffb700','#a855f7'],
+    dbs:[],
+    endpoints:[['--','chat_logs collection','--'],['--','evidence collection','--'],['--','templates collection','--'],['--','audit_trail collection','--']],
+    flow:['Service sends query','Document lookup by _id / index','Aggregation pipeline (optional)','Return BSON document','Serialise to JSON','Send to requesting service'],
+    flowColors:['#4db33d','#4db33d','#4db33d','#4db33d','#4db33d','#4db33d'],
+    logs:[['09:42:10','ok','Chat log saved: EMG-841'],['09:42:08','ok','Evidence metadata stored'],['09:42:05','info','Template fetched: sms-en'],['09:42:02','ok','Audit: case update logged']]
+  },
+  'elasticsearch': {
+    name:'Elasticsearch', badge:'🔍 ELASTICSEARCH', color:'#f4bd19',
+    desc:'Full-text search and analytics engine. Indexes all complaints and cases for fast keyword search, statistical analysis, hotspot mapping, and trend detection.',
+    metrics:['99.7%','25ms','180','1'], mlabels:['Uptime','Search/ms','Idx/min','Nodes'],
+    mcolors:['#00ff9d','#00c8ff','#ffb700','#a855f7'],
+    dbs:[],
+    endpoints:[['GET','/search/complaints','25ms'],['GET','/search/cases','18ms'],['POST','/index/complaint','40ms'],['GET','/analytics/hotspot','60ms']],
+    flow:['Document indexed on creation','Tokenized & analyzed','Stored in inverted index','Search query received','BM25 scoring applied','Top results returned'],
+    flowColors:['#f4bd19','#f4bd19','#f4bd19','#f4bd19','#f4bd19','#f4bd19'],
+    logs:[['09:42:11','ok','Indexed: CYB-912 — cyber fraud'],['09:42:08','info','Search: "accident NH16" — 12 hits'],['09:42:04','ok','Hotspot: Ongole MG Road'],['09:41:58','ok','Shard health: green']]
+  }
+};
+
+// ─── CANVAS ──────────────────────────────────────────────────────────────────
+const canvas = document.getElementById('arch');
+const ctx = canvas.getContext('2d');
+let W, H, nodes = {}, packets = [], animId, liveAnim = true;
+let activeFlow = null, flowStep = 0, flowTimer = null;
+
+const nodeLayout = [
+  // [id, col, row, label, color, icon]
+  ['client',      0.5, 0.08, 'Client / App', '#5a7a99', '👤'],
+  ['api-gateway', 0.5, 0.20, 'API Gateway',  '#00c8ff', '⬡'],
+  ['auth',        0.2, 0.35, 'Auth Svc',     '#a855f7', '🔐'],
+  ['complaint',   0.5, 0.35, 'Complaint Svc','#ffb700', '📋'],
+  ['routing',     0.8, 0.35, 'Routing',      '#ff4060', '🔀'],
+  ['kafka',       0.5, 0.52, 'Kafka',        '#ff7a00', '⚡'],
+  ['notification',0.18,0.68, 'Notify Svc',   '#00ff9d', '🔔'],
+  ['cyber',       0.38,0.68, 'Cyber Svc',    '#00aaff', '💻'],
+  ['emergency',   0.62,0.68, 'Emergency',    '#ff4060', '🚨'],
+  ['redis',       0.82,0.68, 'Redis',        '#ff4444', '⚡'],
+  ['postgres',    0.28,0.85, 'PostgreSQL',   '#336791', '🐘'],
+  ['mongo',       0.5, 0.85, 'MongoDB',      '#4db33d', '🍃'],
+  ['elasticsearch',0.72,0.85,'Elasticsearch','#f4bd19', '🔍'],
+];
+
+const connections = [
+  ['client','api-gateway','#00c8ff',false],
+  ['api-gateway','auth','#a855f7',false],
+  ['api-gateway','complaint','#ffb700',false],
+  ['api-gateway','routing','#ff4060',false],
+  ['complaint','kafka','#ff7a00',true],
+  ['routing','kafka','#ff7a00',true],
+  ['kafka','notification','#00ff9d',true],
+  ['kafka','cyber','#00aaff',true],
+  ['kafka','emergency','#ff4060',true],
+  ['complaint','postgres','#336791',false],
+  ['auth','redis','#ff4444',false],
+  ['notification','mongo','#4db33d',false],
+  ['cyber','elasticsearch','#f4bd19',false],
+  ['routing','elasticsearch','#f4bd19',false],
+  ['emergency','redis','#ff4444',false],
+  ['complaint','mongo','#4db33d',false],
+];
+
+function resize() {
+  const container = document.getElementById('center');
+  W = canvas.width = container.clientWidth;
+  H = canvas.height = container.clientHeight;
+  nodeLayout.forEach(([id,,, , ,]) => {
+    const n = nodeLayout.find(n=>n[0]===id);
+    if(nodes[id]) { nodes[id].x = n[1]*W; nodes[id].y = n[2]*H; }
+  });
+  buildNodes();
+}
+
+function buildNodes() {
+  nodes = {};
+  nodeLayout.forEach(([id,cx,cy,label,color,icon]) => {
+    nodes[id] = { x:cx*W, y:cy*H, label, color, icon, glow:0 };
+  });
+}
+
+function getNode(id) { return nodes[id]; }
+
+function drawArrow(ax,ay,bx,by,color,dashed,alpha=0.35) {
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1.2;
+  if(dashed) ctx.setLineDash([5,4]);
+  ctx.beginPath();
+  ctx.moveTo(ax,ay); ctx.lineTo(bx,by);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  // arrowhead
+  const angle = Math.atan2(by-ay,bx-ax);
+  ctx.globalAlpha = alpha*1.5;
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.moveTo(bx,by);
+  ctx.lineTo(bx-9*Math.cos(angle-0.4),by-9*Math.sin(angle-0.4));
+  ctx.lineTo(bx-9*Math.cos(angle+0.4),by-9*Math.sin(angle+0.4));
+  ctx.closePath(); ctx.fill();
+  ctx.restore();
+}
+
+function drawNode(n, id, highlight=false) {
+  const r = 32;
+  ctx.save();
+  if(highlight || n.glow > 0) {
+    ctx.shadowColor = n.color;
+    ctx.shadowBlur = 20 + n.glow*15;
+  }
+  // bg
+  ctx.beginPath();
+  ctx.arc(n.x,n.y,r,0,Math.PI*2);
+  ctx.fillStyle = highlight ? n.color+'33' : '#0a1220';
+  ctx.fill();
+  // border
+  ctx.lineWidth = highlight ? 2 : 1.2;
+  ctx.strokeStyle = n.color + (highlight ? 'ff' : '88');
+  ctx.stroke();
+  ctx.restore();
+  // icon
+  ctx.save();
+  ctx.font = '16px serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(n.icon, n.x, n.y-2);
+  ctx.restore();
+  // label
+  ctx.save();
+  ctx.fillStyle = highlight ? n.color : '#8fa3c0';
+  ctx.font = `${highlight?'500 ':''}10px Outfit,sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  ctx.fillText(n.label, n.x, n.y+r+5);
+  ctx.restore();
+}
+
+function drawPacket(p) {
+  ctx.save();
+  ctx.shadowColor = p.color; ctx.shadowBlur = 10;
+  ctx.fillStyle = p.color;
+  ctx.beginPath(); ctx.arc(p.x, p.y, 4, 0, Math.PI*2); ctx.fill();
+  ctx.restore();
+}
+
+let t = 0;
+function draw() {
+  ctx.clearRect(0,0,W,H);
+
+  // connections
+  connections.forEach(([a,b,color,dashed]) => {
+    const na = getNode(a), nb = getNode(b);
+    if(!na||!nb) return;
+    const dx=nb.x-na.x, dy=nb.y-na.y, dist=Math.sqrt(dx*dx+dy*dy);
+    const nx=dx/dist, ny=dy/dist, r=32;
+    drawArrow(na.x+nx*r,na.y+ny*r,nb.x-nx*r,nb.y-ny*r,color,dashed);
+  });
+
+  // packets
+  packets = packets.filter(p => {
+    p.prog += 0.018;
+    if(p.prog >= 1) return false;
+    const na=getNode(p.from), nb=getNode(p.to);
+    if(!na||!nb) return false;
+    p.x = na.x + (nb.x-na.x)*p.prog;
+    p.y = na.y + (nb.y-na.y)*p.prog;
+    drawPacket(p);
+    return true;
+  });
+
+  // nodes
+  nodeLayout.forEach(([id]) => {
+    const n = nodes[id];
+    if(!n) return;
+    if(n.glow > 0) n.glow -= 0.03;
+    const hi = id === currentSvc;
+    drawNode(n, id, hi);
+  });
+
+  t++;
+  // random ambient packets
+  if(liveAnim && t % 55 === 0) {
+    const c = connections[Math.floor(Math.random()*connections.length)];
+    spawnPacket(c[0],c[1],c[2]);
+  }
+
+  animId = requestAnimationFrame(draw);
+}
+
+function spawnPacket(from,to,color) {
+  packets.push({from,to,color,prog:0,x:0,y:0});
+  const n = nodes[from]; if(n) n.glow = 1;
+}
+
+// ─── FLOWS ───────────────────────────────────────────────────────────────────
+const flows = {
+  complaint: [
+    ['client','api-gateway','#00c8ff'],
+    ['api-gateway','auth','#a855f7'],
+    ['api-gateway','complaint','#ffb700'],
+    ['complaint','kafka','#ff7a00'],
+    ['kafka','notification','#00ff9d'],
+    ['kafka','routing','#ff4060'],
+    ['complaint','postgres','#336791'],
+    ['notification','mongo','#4db33d'],
+  ],
+  emergency: [
+    ['client','api-gateway','#ff4060'],
+    ['api-gateway','routing','#ff4060'],
+    ['routing','kafka','#ff4060'],
+    ['kafka','emergency','#ff4060'],
+    ['emergency','redis','#ff4444'],
+    ['emergency','postgres','#336791'],
+    ['kafka','notification','#ff4060'],
+  ],
+  cyber: [
+    ['client','api-gateway','#00aaff'],
+    ['api-gateway','complaint','#ffb700'],
+    ['complaint','kafka','#ff7a00'],
+    ['kafka','cyber','#00aaff'],
+    ['cyber','elasticsearch','#f4bd19'],
+    ['cyber','postgres','#336791'],
+    ['kafka','notification','#00ff9d'],
+  ]
+};
+
+let flowRunning = false;
+function triggerFlow(type) {
+  if(flowRunning) return;
+  flowRunning = true;
+  const steps = flows[type];
+  let i = 0;
+  const run = () => {
+    if(i >= steps.length) { flowRunning = false; return; }
+    const [a,b,c] = steps[i++];
+    spawnPacket(a,b,c);
+    setTimeout(run, 320);
+  };
+  run();
+}
+
+// ─── UI ──────────────────────────────────────────────────────────────────────
+let currentSvc = 'api-gateway';
+let reqCount = 0;
+
+function selectService(id) {
+  currentSvc = id;
+  document.querySelectorAll('.service-item').forEach(el => el.classList.remove('active'));
+  const el = document.getElementById('si-'+id);
+  if(el) el.classList.add('active');
+  const s = services[id];
+  if(!s) return;
+  document.getElementById('d-badge').textContent = s.badge;
+  document.getElementById('d-badge').style.color = s.color;
+  document.getElementById('d-badge').style.borderColor = s.color+'55';
+  document.getElementById('d-badge').style.background = s.color+'15';
+  document.getElementById('d-name').textContent = s.name;
+  document.getElementById('d-desc').textContent = s.desc;
+  // metrics
+  const mv = ['m1','m2','m3','m4'];
+  mv.forEach((mid,i)=>{
+    const el = document.getElementById(mid);
+    if(el && s.metrics[i]) {
+      el.textContent = s.metrics[i];
+      el.style.color = s.mcolors[i];
+      el.closest('.metric-card').querySelector('.metric-lbl').textContent = s.mlabels[i];
+    }
+  });
+  // dbs
+  const dbEl = document.getElementById('d-dbs');
+  if(s.dbs.length === 0) {
+    dbEl.innerHTML = '<span style="font-size:11px;color:var(--text2)">No direct DB connections</span>';
+  } else {
+    dbEl.innerHTML = s.dbs.map(d=>{
+      const [label,type] = d.split(':');
+      const clrs = {postgres:'#336791',mongo:'#4db33d',redis:'#ff4444',elasticsearch:'#f4bd19'};
+      const c = clrs[type]||'#5a7a99';
+      return `<span class="db-tag" style="border-color:${c}55;color:${c};background:${c}11">${label}</span>`;
+    }).join('');
+  }
+  // endpoints
+  const epEl = document.getElementById('d-endpoints');
+  const methods = {POST:'post',GET:'get',PUT:'put',DELETE:'del','--':'get'};
+  epEl.innerHTML = s.endpoints.map(([m,p,ms])=>`
+    <div class="endpoint-row">
+      <span class="method ${methods[m]||'get'}">${m}</span>
+      <span class="endpoint-path">${p}</span>
+      <span class="endpoint-ms">${ms}</span>
+    </div>`).join('');
+  // flow
+  const fEl = document.getElementById('d-flow');
+  fEl.innerHTML = s.flow.map((step,i)=>`
+    <div class="flow-step" style="border-color:${(s.flowColors||[])[i]||'var(--cyan)'}">
+      <div class="step-num2" style="background:${((s.flowColors||[])[i])||'#00c8ff'}22;color:${((s.flowColors||[])[i])||'#00c8ff'}">${i+1}</div>
+      ${step}
+    </div>`).join('');
+  // logs
+  const lEl = document.getElementById('d-logs');
+  const typeMap = {ok:'log-ok',info:'log-info',warn:'log-warn',err:'log-err'};
+  lEl.innerHTML = s.logs.map(([time,type,msg])=>`
+    <div class="log-row">
+      <span class="log-time">${time}</span>
+      <span class="log-msg ${typeMap[type]||'log-info'}">${msg}</span>
+    </div>`).join('');
+}
+
+function toggleLive() {
+  liveAnim = !liveAnim;
+  document.getElementById('toggleAnim').textContent = liveAnim ? '⏸ Pause' : '▶ Resume';
+}
+
+function switchView(v) {
+  document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('active',[' arch','flow','db','api'][i+1]===(' '+v)));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t=>{ if(t.textContent.toLowerCase().includes(v.slice(0,3))) t.classList.add('active'); });
+  if(v==='flow') triggerFlow('complaint');
+  if(v==='db') selectService('postgres');
+  if(v==='api') selectService('api-gateway');
+}
+
+// counter
+setInterval(()=>{
+  reqCount += Math.floor(Math.random()*5+1);
+  document.getElementById('reqCount').textContent = reqCount % 9000 + 800;
+}, 1200);
+
+// Init
+window.addEventListener('resize', resize);
+resize();
+buildNodes();
+draw();
+selectService('api-gateway');
+</script>
+</body>
+</html>
